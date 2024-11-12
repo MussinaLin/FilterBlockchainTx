@@ -8,11 +8,11 @@ import (
 	// "math/big"
 	"os"
 
-	"mussinalin/interview_bedrock/database"
-
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/joho/godotenv"
+
+	"mussinalin/interview_bedrock/blockchain"
+	"mussinalin/interview_bedrock/database"
 )
 
 func main() {
@@ -22,29 +22,15 @@ func main() {
 	}
 
 	rpcurl := os.Getenv("ETH_RPC")
-	fmt.Printf("rpcurl:%s\n", rpcurl)
+	log.Printf("rpcurl:%s\n", rpcurl)
 
 	// ctx := context.Background()
-
-	// connect to rpc
-	client, err := ethclient.Dial(rpcurl)
-	if err != nil {
-		log.Fatalf("Failed to connect to the Ethereum client: %v", err)
+	if err := blockchain.InitRpc(rpcurl); err != nil {
+		log.Fatalf("Failed to initialize rpc: %v\n", err)
 	}
-	defer client.Close()
+	defer blockchain.CloseRpc()
 
-	// get latest block num
-	header, err := client.HeaderByNumber(context.Background(), nil)
-	if err != nil {
-		log.Fatalf("Failed to get the latest block header: %v", err)
-	}
-	fmt.Printf("Latest Block Number: %d\n", header.Number.Uint64())
-
-	// get block
-	block, err := client.BlockByNumber(context.Background(), header.Number)
-	if err != nil {
-		log.Fatalf("Failed to get the latest block: %v", err)
-	}
+	block, _ := blockchain.GetBlockByNumber(nil)
 
 	fmt.Printf("Block Hash: %s\n", block.Hash().Hex())
 	fmt.Printf("Block Number: %d\n", block.Number().Uint64())
@@ -53,15 +39,15 @@ func main() {
 	fmt.Printf("Block Transactions Count: %d\n", len(block.Transactions()))
 
 	// read each tx
-	for _, tx := range block.Transactions() {
-		fmt.Printf("Transaction Hash: %s\n", tx.Hash().Hex())
-		fmt.Printf("From: %s\n", getTransactionSender(client, tx))
-		fmt.Printf("To: %s\n", tx.To().Hex())
-		fmt.Printf("Value: %s\n", tx.Value().String())
-		fmt.Printf("Gas: %d\n", tx.Gas())
-		fmt.Printf("Gas Price: %s\n", tx.GasPrice().String())
-		fmt.Println("===================================")
-	}
+	// for _, tx := range block.Transactions() {
+	// 	fmt.Printf("Transaction Hash: %s\n", tx.Hash().Hex())
+	// 	fmt.Printf("From: %s\n", getTransactionSender(client, tx))
+	// 	fmt.Printf("To: %s\n", tx.To().Hex())
+	// 	fmt.Printf("Value: %s\n", tx.Value().String())
+	// 	fmt.Printf("Gas: %d\n", tx.Gas())
+	// 	fmt.Printf("Gas Price: %s\n", tx.GasPrice().String())
+	// 	fmt.Println("===================================")
+	// }
 }
 
 func getTransactionSender(tx *types.Transaction) string {
