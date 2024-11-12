@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 
-	// "math/big"
+	"math/big"
 	"os"
 
 	"github.com/ethereum/go-ethereum/core/types"
@@ -30,13 +30,23 @@ func main() {
 	}
 	defer blockchain.CloseRpc()
 
-	block, _ := blockchain.GetBlockByNumber(nil)
+	block, _ := blockchain.GetBlockByNumber(big.NewInt(21150126))
 
 	fmt.Printf("Block Hash: %s\n", block.Hash().Hex())
 	fmt.Printf("Block Number: %d\n", block.Number().Uint64())
 	fmt.Printf("Block Time: %d\n", block.Time())
 	fmt.Printf("Block Nonce: %d\n", block.Nonce())
 	fmt.Printf("Block Transactions Count: %d\n", len(block.Transactions()))
+
+	contractAddr := os.Getenv("TARGET_CONTRACT")
+	fmt.Printf("contractAddr:%s\n", contractAddr)
+
+	for _, tx := range block.Transactions() {
+		txHash := blockchain.FilterTxByAddress(contractAddr, tx)
+		if txHash != "" {
+			fmt.Printf("Got tx:%s\n", txHash)
+		}
+	}
 
 	// read each tx
 	// for _, tx := range block.Transactions() {
