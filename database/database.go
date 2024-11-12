@@ -11,7 +11,7 @@ import (
 
 type MintTx struct {
 	TxHash    string
-	BlockNum  int
+	BlockNum  uint64
 	BlockHash string
 	Sender    string
 }
@@ -46,12 +46,12 @@ func CloseDB() {
 	log.Println("Database connection pool closed")
 }
 
-func InsertTx(ctx context.Context, txHash string, blockNum int, blockHash string, sender string) error {
+func InsertTx(ctx context.Context, mintTx *MintTx) error {
 	query := `INSERT INTO mint_tx (tx_hash, block_num, block_hash, sender) VALUES ($1, $2, $3, $4)`
-	_, err := db.Exec(ctx, query, txHash, blockNum, blockHash, sender)
+	_, err := db.Exec(ctx, query, mintTx.TxHash, mintTx.BlockNum, mintTx.BlockHash, mintTx.Sender)
 	if err != nil {
 		return fmt.Errorf("failed to insert tx: %w", err)
 	}
-	log.Println("Inserted tx:", txHash)
+	log.Println("Inserted tx:", mintTx.TxHash)
 	return nil
 }

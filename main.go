@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sync"
+	"time"
 
 	"math/big"
 	"os"
@@ -21,55 +23,8 @@ func main() {
 		log.Fatalf("Error loading .env file: %v\n", err)
 	}
 
-	rpcurl := os.Getenv("ETH_RPC")
-	log.Printf("rpcurl:%s\n", rpcurl)
+	ctx := context.Background()
 
-	// ctx := context.Background()
-	if err := blockchain.InitRpc(rpcurl); err != nil {
-		log.Fatalf("Failed to initialize rpc: %v\n", err)
-	}
-	defer blockchain.CloseRpc()
-
-	block, _ := blockchain.GetBlockByNumber(big.NewInt(21150126))
-
-	fmt.Printf("Block Hash: %s\n", block.Hash().Hex())
-	fmt.Printf("Block Number: %d\n", block.Number().Uint64())
-	fmt.Printf("Block Time: %d\n", block.Time())
-	fmt.Printf("Block Nonce: %d\n", block.Nonce())
-	fmt.Printf("Block Transactions Count: %d\n", len(block.Transactions()))
-
-	contractAddr := os.Getenv("TARGET_CONTRACT")
-	fmt.Printf("contractAddr:%s\n", contractAddr)
-
-	for _, tx := range block.Transactions() {
-		txHash := blockchain.FilterTxByAddress(contractAddr, tx)
-		if txHash != "" {
-			fmt.Printf("Got tx:%s\n", txHash)
-		}
-	}
-
-	// read each tx
-	// for _, tx := range block.Transactions() {
-	// 	fmt.Printf("Transaction Hash: %s\n", tx.Hash().Hex())
-	// 	fmt.Printf("From: %s\n", getTransactionSender(client, tx))
-	// 	fmt.Printf("To: %s\n", tx.To().Hex())
-	// 	fmt.Printf("Value: %s\n", tx.Value().String())
-	// 	fmt.Printf("Gas: %d\n", tx.Gas())
-	// 	fmt.Printf("Gas Price: %s\n", tx.GasPrice().String())
-	// 	fmt.Println("===================================")
-	// }
-}
-
-func getTransactionSender(tx *types.Transaction) string {
-	from, err := types.Sender(types.LatestSignerForChainID(tx.ChainId()), tx)
-	if err != nil {
-		log.Fatalf("Failed to get transaction sender: %v", err)
-	}
-
-	return from.Hex()
-}
-
-func databaseFn(ctx context.Context) {
 	// read database dsn
 	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s",
 		os.Getenv("POSTGRES_USER"),
@@ -85,9 +40,60 @@ func databaseFn(ctx context.Context) {
 	}
 	defer database.CloseDB()
 
-	// test insert
-	if err := database.InsertTx(ctx, "0x1234", 999, "0x2222", "0xmussinaeth"); err != nil {
-		log.Fatalf("Error inserting user: %v\n", err)
+	// init blockchain rpc
+	rpcurl := os.Getenv("ETH_RPC")
+	log.Printf("rpcurl:%s\n", rpcurl)
+
+	if err := blockchain.InitRpc(rpcurl); err != nil {
+		log.Fatalf("Failed to initialize rpc: %v\n", err)
+	}
+	defer blockchain.CloseRpc()
+
+	block, _ := blockchain.GetBlockByNumber(big.NewInt(21150126))
+
+	contractAddr := os.Getenv("TARGET_CONTRACT")
+	fmt.Printf("contractAddr:%s\n", contractAddr)
+
+	funcSelector := os.Getenv("FILTERED_FUNCTION_SELECTOR")
+	fmt.Printf("funcSelector:%s\n", funcSelector)
+
+	var wg sync.WaitGroup
+
+	start := time.Now()
+
+	for _, tx := range block.Transactions() {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			res := blockchain.FilterTxByAddressAndFunSelector(contractAddr, funcSelector, tx)
+			if res != nil {
+				// database
+				mintTx := &database.MintTx{
+					TxHash:    tx.Hash().Hex(),
+					BlockNum:  block.Number().Uint64(),
+					BlockHash: block.Hash().Hex(),
+					Sender:    getTransactionSender(tx),
+				}
+				database.InsertTx(ctx, mintTx)
+			}
+		}()
+
 	}
 
+	wg.Wait()
+
+	elapsed := time.Since(start)
+	fmt.Printf("Execution time: %s\n", elapsed)
+
+}
+
+// func scanBlock()
+
+func getTransactionSender(tx *types.Transaction) string {
+	from, err := types.Sender(types.LatestSignerForChainID(tx.ChainId()), tx)
+	if err != nil {
+		log.Fatalf("Failed to get transaction sender: %v", err)
+	}
+
+	return from.Hex()
 }
