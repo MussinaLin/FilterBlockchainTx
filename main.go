@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strconv"
 	"sync"
 	"time"
 
@@ -49,17 +50,37 @@ func main() {
 	}
 	defer blockchain.CloseRpc()
 
-	block, _ := blockchain.GetBlockByNumber(big.NewInt(21150126))
-
+	// read env
 	contractAddr := os.Getenv("TARGET_CONTRACT")
 	fmt.Printf("contractAddr:%s\n", contractAddr)
 
 	funcSelector := os.Getenv("FILTERED_FUNCTION_SELECTOR")
 	fmt.Printf("funcSelector:%s\n", funcSelector)
 
+	n := os.Getenv("BLOCK_START_FROM_LATEST")
+	blockFromLast, _ := strconv.ParseUint(n, 10, 64)
+	fmt.Printf("blockFromLatest:%d\n", blockFromLast)
+
+	// get current block
+	curBlock, err := blockchain.GetBlockByNumber(nil)
+	if err != nil {
+		log.Fatalf("get current block fail. %v", err)
+	}
+	startBlock := curBlock.Number().Uint64() - blockFromLast
+
 	var wg sync.WaitGroup
 
 	start := time.Now()
+
+	wg.Wait()
+
+	elapsed := time.Since(start)
+	fmt.Printf("Execution time: %s\n", elapsed)
+
+}
+
+func scanBlockByToAddrAndFuncSelector(wg sync.WaitGroup, ctx context.Context, blockNum *big.Int, toAddr string, selector string) {
+	block, _ := blockchain.GetBlockByNumber(blockNum)
 
 	for _, tx := range block.Transactions() {
 		wg.Add(1)
@@ -80,14 +101,7 @@ func main() {
 
 	}
 
-	wg.Wait()
-
-	elapsed := time.Since(start)
-	fmt.Printf("Execution time: %s\n", elapsed)
-
 }
-
-// func scanBlock()
 
 func getTransactionSender(tx *types.Transaction) string {
 	from, err := types.Sender(types.LatestSignerForChainID(tx.ChainId()), tx)
