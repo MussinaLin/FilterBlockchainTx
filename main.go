@@ -81,19 +81,15 @@ func main() {
 
 	for i := startBlock; i <= curBlock.Number().Uint64(); i++ {
 		wg.Add(1)
-		go scanBlockByToAddrAndFuncSelector(ctx, &wg, mintTxs, i, contractAddr, funcSelector)
+		go scanBlockByToAddrAndFuncSelector(&wg, mintTxs, i, contractAddr, funcSelector)
 
 		// add random delay to avoid free rpc rate limit
 		// at least delay 100ms
 		delay := time.Duration(rng.Intn(50)+100) * time.Millisecond
-		fmt.Printf("delay time: %s\n", delay.String())
 		time.Sleep(delay)
 	}
 
-	fmt.Printf("wait...\n")
 	wg.Wait()
-	fmt.Printf("wait end...\n")
-
 	close(mintTxs)
 
 	elapsed := time.Since(start)
@@ -101,8 +97,9 @@ func main() {
 
 }
 
-func scanBlockByToAddrAndFuncSelector(ctx context.Context, wg *sync.WaitGroup, mintTxs chan *database.MintTx, blockNum uint64, toAddr string, selector string) {
+func scanBlockByToAddrAndFuncSelector(wg *sync.WaitGroup, mintTxs chan *database.MintTx, blockNum uint64, toAddr string, selector string) {
 	defer wg.Done()
+	fmt.Printf("process block:%d", blockNum)
 
 	block, err := blockchain.GetBlockByNumber(blockNum)
 	if err != nil {
@@ -132,18 +129,11 @@ func scanBlockByToAddrAndFuncSelector(ctx context.Context, wg *sync.WaitGroup, m
 }
 
 func handleMintTx(ctx context.Context, mintTxs chan *database.MintTx) {
-	for {
-		select {
-		case tx, ok := <-mintTxs:
-			if !ok {
-				fmt.Println("mintTxs channel closed...")
-				return
-			}
-			fmt.Println("receive tx from channel:", tx.TxHash)
-			err := database.InsertTx(ctx, tx)
-			if err != nil {
-				fmt.Println("insert tx fail:", tx.TxHash)
-			}
+	for tx := range mintTxs {
+		fmt.Println("receive tx from channel:", tx.TxHash)
+		err := database.InsertTx(ctx, tx)
+		if err != nil {
+			fmt.Println("insert tx fail:", tx.TxHash)
 		}
 	}
 
