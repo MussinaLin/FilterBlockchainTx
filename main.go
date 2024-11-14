@@ -25,7 +25,10 @@ func main() {
 		log.Fatalf("Error loading .env file: %v\n", err)
 	}
 
+	// 10s timeout context for database operation
+	//ctx , cancel:= context.WithTimeout(context.Background(), 10 * time.Second)
 	ctx := context.Background()
+	// defer cancel()
 
 	// read database dsn
 	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s",
@@ -72,13 +75,17 @@ func main() {
 	var wg sync.WaitGroup
 
 	start := time.Now()
+	mintTxs := make(chan *database.MintTx)
+
+	go handleMintTx(ctx, mintTxs)
 
 	for i := startBlock; i <= curBlock.Number().Uint64(); i++ {
 		wg.Add(1)
-		go scanBlockByToAddrAndFuncSelector(&wg, ctx, i, contractAddr, funcSelector)
+		go scanBlockByToAddrAndFuncSelector(ctx, &wg, mintTxs, i, contractAddr, funcSelector)
 
 		// add random delay to avoid free rpc rate limit
-		delay := time.Duration(rng.Intn(100)+100) * time.Millisecond
+		// at least delay 100ms
+		delay := time.Duration(rng.Intn(50)+100) * time.Millisecond
 		fmt.Printf("delay time: %s\n", delay.String())
 		time.Sleep(delay)
 	}
@@ -87,12 +94,14 @@ func main() {
 	wg.Wait()
 	fmt.Printf("wait end...\n")
 
+	close(mintTxs)
+
 	elapsed := time.Since(start)
 	fmt.Printf("Execution time: %s\n", elapsed)
 
 }
 
-func scanBlockByToAddrAndFuncSelector(wg *sync.WaitGroup, ctx context.Context, blockNum uint64, toAddr string, selector string) {
+func scanBlockByToAddrAndFuncSelector(ctx context.Context, wg *sync.WaitGroup, mintTxs chan *database.MintTx, blockNum uint64, toAddr string, selector string) {
 	defer wg.Done()
 
 	block, err := blockchain.GetBlockByNumber(blockNum)
@@ -107,8 +116,6 @@ func scanBlockByToAddrAndFuncSelector(wg *sync.WaitGroup, ctx context.Context, b
 
 	fmt.Printf("process block:%d  tx len:%d\n", blockNum, block.Transactions().Len())
 	for _, tx := range block.Transactions() {
-		// go func() {
-
 		res := blockchain.FilterTxByAddressAndFunSelector(toAddr, selector, tx)
 		if res != nil {
 			// database
@@ -118,10 +125,26 @@ func scanBlockByToAddrAndFuncSelector(wg *sync.WaitGroup, ctx context.Context, b
 				BlockHash: block.Hash().Hex(),
 				Sender:    getTransactionSender(tx),
 			}
-			database.InsertTx(ctx, mintTx)
+			mintTxs <- mintTx
 		}
-		// }()
+	}
 
+}
+
+func handleMintTx(ctx context.Context, mintTxs chan *database.MintTx) {
+	for {
+		select {
+		case tx, ok := <-mintTxs:
+			if !ok {
+				fmt.Println("mintTxs channel closed...")
+				return
+			}
+			fmt.Println("receive tx from channel:", tx.TxHash)
+			err := database.InsertTx(ctx, tx)
+			if err != nil {
+				fmt.Println("insert tx fail:", tx.TxHash)
+			}
+		}
 	}
 
 }
