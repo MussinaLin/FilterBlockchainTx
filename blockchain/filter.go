@@ -8,6 +8,10 @@ import (
 )
 
 func FilterTxByAddressAndFunSelector(target string, targetSelector string, tx *types.Transaction) *types.Transaction {
+	if tx.To() == nil { // contract creation tx
+		return nil
+	}
+
 	to := tx.To().Hex()
 
 	if to == target { // `to` is the contract we want

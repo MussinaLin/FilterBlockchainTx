@@ -23,11 +23,15 @@ func InitRpc(rpcUrl string) error {
 	return nil
 }
 
-func GetBlockByNumber(num *big.Int) (*types.Block, error) {
+func GetBlockByNumber(num uint64) (*types.Block, error) {
 	// get latest block num
-	header, err := client.HeaderByNumber(context.Background(), num)
+	blockNum := new(big.Int).SetUint64(num)
+	if num == 0 {
+		blockNum = nil
+	}
+	header, err := client.HeaderByNumber(context.Background(), blockNum)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get block (%d) header: %v", err, num)
+		return nil, fmt.Errorf("failed to get block (%d) header: %v", num, err)
 	}
 
 	// get block
