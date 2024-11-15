@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"log"
@@ -30,11 +29,6 @@ func main() {
 	if err := initLog(); err != nil {
 		log.Fatalln(err)
 	}
-
-	// 10s timeout context for database operation
-	//ctx , cancel:= context.WithTimeout(context.Background(), 10 * time.Second)
-	ctx := context.Background()
-	// defer cancel()
 
 	// init database
 	if err := initDB(); err != nil {
@@ -65,7 +59,7 @@ func main() {
 	start := time.Now()
 
 	// handle mint tx
-	go handleMintTx(ctx, mintTxs)
+	go handleMintTx(mintTxs)
 
 	wg.Add(1) // for processBlocks()
 	go processBlocks(&wg, mintTxs, startBlock, curBlock.Number().Uint64())
@@ -171,10 +165,10 @@ func scanBlockByToAddrAndFuncSelector(wg *sync.WaitGroup, mintTxs chan *database
 
 }
 
-func handleMintTx(ctx context.Context, mintTxs chan *database.MintTx) {
+func handleMintTx(mintTxs chan *database.MintTx) {
 	for tx := range mintTxs {
 		fmt.Println("receive tx from channel:", tx.TxHash)
-		err := database.InsertTx(ctx, tx)
+		err := database.InsertTx(tx)
 		if err != nil {
 			fmt.Println("insert tx fail:", tx.TxHash)
 		}

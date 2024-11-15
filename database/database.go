@@ -46,7 +46,10 @@ func CloseDB() {
 	log.Println("Database connection pool closed")
 }
 
-func InsertTx(ctx context.Context, mintTx *MintTx) error {
+func InsertTx(mintTx *MintTx) error {
+	ctx, cancel := contextForInsert()
+	defer cancel()
+
 	query := `INSERT INTO mint_tx (tx_hash, block_num, block_hash, sender) VALUES ($1, $2, $3, $4)`
 	_, err := db.Exec(ctx, query, mintTx.TxHash, mintTx.BlockNum, mintTx.BlockHash, mintTx.Sender)
 	if err != nil {
@@ -54,4 +57,8 @@ func InsertTx(ctx context.Context, mintTx *MintTx) error {
 	}
 	log.Println("Inserted tx:", mintTx.TxHash)
 	return nil
+}
+
+func contextForInsert() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), 500*time.Millisecond)
 }
