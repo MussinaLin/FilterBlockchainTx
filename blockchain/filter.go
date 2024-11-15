@@ -1,7 +1,7 @@
 package blockchain
 
 import (
-	"fmt"
+	"log"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -21,8 +21,7 @@ func FilterTxByAddressAndFunSelector(target string, targetSelector string, tx *t
 		selector := txdata[:10]
 
 		if targetSelector == selector {
-			fmt.Printf("get:%s\n", tx.Hash().Hex())
-
+			log.Printf("get:%s\n", tx.Hash().Hex())
 			return tx
 		}
 	}

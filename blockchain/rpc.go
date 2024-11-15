@@ -24,20 +24,19 @@ func InitRpc(rpcUrl string) error {
 }
 
 func GetBlockByNumber(num uint64) (*types.Block, error) {
-	// get latest block num
 	blockNum := new(big.Int).SetUint64(num)
 	if num == 0 {
 		blockNum = nil
 	}
 	header, err := client.HeaderByNumber(context.Background(), blockNum)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get block (%d) header: %v", num, err)
+		return nil, fmt.Errorf("failed to get block:%d header: %v", num, err)
 	}
 
 	// get block
 	block, err := client.BlockByNumber(context.Background(), header.Number)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get the latest block: %v", err)
+		return nil, fmt.Errorf("failed to get block:%d %v", num, err)
 	}
 
 	return block, nil

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"math/rand"
 	"os"
@@ -22,7 +23,11 @@ var rng *rand.Rand = rand.New(rand.NewSource(time.Now().UnixNano()))
 func main() {
 	// load .env
 	if err := godotenv.Load(); err != nil {
-		log.Fatalf("Error loading .env file: %v\n", err)
+		fmt.Printf("Error loading .env file: %v\n", err)
+	}
+
+	if err := setupLog(); err != nil {
+		fmt.Println(err)
 	}
 
 	// 10s timeout context for database operation
@@ -46,24 +51,24 @@ func main() {
 	defer database.CloseDB()
 
 	// init blockchain rpc
-	rpcurl := os.Getenv("ETH_RPC")
-	log.Printf("rpcurl:%s\n", rpcurl)
+	rpcUrl := os.Getenv("ETH_RPC")
+	log.Printf("rpcUrl:%s\n", rpcUrl)
 
-	if err := blockchain.InitRpc(rpcurl); err != nil {
+	if err := blockchain.InitRpc(rpcUrl); err != nil {
 		log.Fatalf("Failed to initialize rpc: %v\n", err)
 	}
 	defer blockchain.CloseRpc()
 
 	// read env
 	contractAddr := os.Getenv("TARGET_CONTRACT")
-	fmt.Printf("contractAddr:%s\n", contractAddr)
+	log.Printf("contractAddr:%s\n", contractAddr)
 
 	funcSelector := os.Getenv("FILTERED_FUNCTION_SELECTOR")
-	fmt.Printf("funcSelector:%s\n", funcSelector)
+	log.Printf("funcSelector:%s\n", funcSelector)
 
 	n := os.Getenv("BLOCK_START_FROM_LATEST")
 	blockFromLast, _ := strconv.ParseUint(n, 10, 64)
-	fmt.Printf("blockFromLatest:%d\n", blockFromLast)
+	log.Printf("blockFromLatest:%d\n", blockFromLast)
 
 	// get current block
 	curBlock, err := blockchain.GetBlockByNumber(0)
@@ -73,10 +78,10 @@ func main() {
 	startBlock := curBlock.Number().Uint64() - blockFromLast
 
 	var wg sync.WaitGroup
-
-	start := time.Now()
 	mintTxs := make(chan *database.MintTx)
+	start := time.Now()
 
+	// handle mint tx goroutine
 	go handleMintTx(ctx, mintTxs)
 
 	for i := startBlock; i <= curBlock.Number().Uint64(); i++ {
@@ -93,25 +98,47 @@ func main() {
 	close(mintTxs)
 
 	elapsed := time.Since(start)
-	fmt.Printf("Execution time: %s\n", elapsed)
+	log.Printf("Execution time: %s\n", elapsed)
+	log.Println("===== Finish =====")
 
+}
+
+func setupLog() error {
+	logFilePath := "./logs/txFilter.log"
+
+	// make sure logs folder exist
+	if err := os.MkdirAll("./logs", os.ModePerm); err != nil {
+		return fmt.Errorf("error creating log directory: %v", err)
+	}
+
+	// set read/write permission
+	logFile, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+	if err != nil {
+		return fmt.Errorf("error opening log file: %v", err)
+	}
+	defer logFile.Close()
+
+	// output log to file and console
+	multiWriter := io.MultiWriter(os.Stdout, logFile)
+	log.SetOutput(multiWriter)
+
+	// set log format
+	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
+
+	log.Println("===== transaction filter start =====")
+	return nil
 }
 
 func scanBlockByToAddrAndFuncSelector(wg *sync.WaitGroup, mintTxs chan *database.MintTx, blockNum uint64, toAddr string, selector string) {
 	defer wg.Done()
-	fmt.Printf("process block:%d", blockNum)
+	log.Printf("process block:%d\n", blockNum)
 
 	block, err := blockchain.GetBlockByNumber(blockNum)
 	if err != nil {
-		fmt.Printf("process block:%d error. %v\n", blockNum, err)
-		return
-	}
-	if block.Transactions() == nil {
-		fmt.Printf("process block:%d  Transactions is nil.\n", blockNum)
+		log.Printf("process block:%d error. %v\n", blockNum, err)
 		return
 	}
 
-	fmt.Printf("process block:%d  tx len:%d\n", blockNum, block.Transactions().Len())
 	for _, tx := range block.Transactions() {
 		res := blockchain.FilterTxByAddressAndFunSelector(toAddr, selector, tx)
 		if res != nil {
