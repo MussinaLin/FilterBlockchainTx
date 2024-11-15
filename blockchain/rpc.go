@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 	"math/big"
+	"strings"
+	"sync"
 
 	// "math/big"
 
@@ -12,15 +14,47 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
-var client *ethclient.Client
+type RPCPool struct {
+	clients []*ethclient.Client
+	mu      sync.Mutex
+	index   int
+}
+
+var rpcPool *RPCPool
 
 func InitRpc(rpcUrl string) error {
-	var err error = nil
-	client, err = ethclient.Dial(rpcUrl)
-	if err != nil {
-		return fmt.Errorf("failed to connect to the Ethereum client: %w", err)
+	rpcUrls := strings.Split(rpcUrl, ",")
+	clients := make([]*ethclient.Client, len(rpcUrls))
+	log.Printf("init rpc pool with size:%d", len(rpcUrls))
+
+	// init rpc clients with multiple rpc endpoint
+	var err error
+	for i := 0; i < len(rpcUrls); i++ {
+		clients[i], err = ethclient.Dial(rpcUrls[i]) // assume all rpc init succ
+		if err != nil {
+			return fmt.Errorf("init RPC error:%v", err)
+		}
+	}
+
+	rpcPool = &RPCPool{
+		clients: clients,
+		index:   0,
 	}
 	return nil
+}
+
+func (pool *RPCPool) getRPC() *ethclient.Client {
+	pool.mu.Lock()
+	defer pool.mu.Unlock()
+	client := pool.clients[pool.index]
+	pool.index = (pool.index + 1) % len(pool.clients)
+	return client
+}
+
+func (pool *RPCPool) closeRPC() {
+	for _, c := range pool.clients {
+		c.Close()
+	}
 }
 
 func GetBlockByNumber(num uint64) (*types.Block, error) {
@@ -28,9 +62,11 @@ func GetBlockByNumber(num uint64) (*types.Block, error) {
 	if num == 0 {
 		blockNum = nil
 	}
+
+	client := rpcPool.getRPC()
 	header, err := client.HeaderByNumber(context.Background(), blockNum)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get block:%d header: %v", num, err)
+		return nil, fmt.Errorf("failed to get block:%d header: %s", num, err)
 	}
 
 	// get block
@@ -43,6 +79,6 @@ func GetBlockByNumber(num uint64) (*types.Block, error) {
 }
 
 func CloseRpc() {
-	client.Close()
+	rpcPool.closeRPC()
 	log.Println("RPC connection closed")
 }

@@ -134,7 +134,7 @@ func processBlocks(wg *sync.WaitGroup, mintTxs chan *database.MintTx, start uint
 
 		// add random delay to avoid free rpc rate limit
 		// at least delay 100ms
-		delay := time.Duration(rng.Intn(50)+100) * time.Millisecond
+		delay := time.Duration(rng.Intn(10)+30) * time.Millisecond
 		time.Sleep(delay)
 	}
 }
