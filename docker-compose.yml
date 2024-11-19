@@ -1,7 +1,7 @@
 services:
   postgres:
     build:
-      context: ./postgres
+      context: ./docker/postgres
       dockerfile: Dockerfile
     container_name: my_postgres
     environment:
@@ -12,16 +12,16 @@ services:
       - "5432:5432"
     volumes:
       # - postgres_data: /var
-      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
   app:
     build:
-      context: ../
+      context: ./
       dockerfile: ./docker/app/Dockerfile
     container_name: txFilter
     depends_on:
       - postgres
     env_file:
-      - ../.env
+      - .env
     ports:
       - "8080:8080"
 
