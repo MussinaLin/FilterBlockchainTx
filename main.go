@@ -13,8 +13,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/joho/godotenv"
 
-	"mussinalin/interview_bedrock/blockchain"
-	"mussinalin/interview_bedrock/database"
+	"github.com/MussinaLin/FilterBlockchainTx/blockchain"
+	"github.com/MussinaLin/FilterBlockchainTx/database"
 )
 
 var rng *rand.Rand = rand.New(rand.NewSource(time.Now().UnixNano()))

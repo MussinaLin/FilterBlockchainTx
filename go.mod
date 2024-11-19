@@ -1,4 +1,4 @@
-module mussinalin/interview_bedrock
+module github.com/MussinaLin/FilterBlockchainTx
 
 go 1.23.2
 
