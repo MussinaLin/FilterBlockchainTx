@@ -133,8 +133,8 @@ func processBlocks(wg *sync.WaitGroup, mintTxs chan *database.MintTx, start uint
 		go scanBlockByToAddrAndFuncSelector(wg, mintTxs, i, contractAddr, funcSelector)
 
 		// add random delay to avoid free rpc rate limit
-		// at least delay 100ms
-		delay := time.Duration(rng.Intn(10)+30) * time.Millisecond
+		// at least delay 80ms
+		delay := time.Duration(rng.Intn(10)+80) * time.Millisecond
 		time.Sleep(delay)
 	}
 }
@@ -170,7 +170,7 @@ func handleMintTx(mintTxs chan *database.MintTx) {
 		fmt.Println("receive tx from channel:", tx.TxHash)
 		err := database.InsertTx(tx)
 		if err != nil {
-			fmt.Println("insert tx fail:", tx.TxHash)
+			fmt.Printf("insert tx fail:%s, %v ", tx.TxHash, err)
 		}
 	}
 

@@ -11,8 +11,19 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-      # - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+      # - postgres_data: /var
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+  app:
+    build:
+      context: ../
+      dockerfile: ./docker/app/Dockerfile
+    container_name: txFilter
+    depends_on:
+      - postgres
+    env_file:
+      - ../.env
+    ports:
+      - "8080:8080"
 
 volumes:
   postgres_data:
